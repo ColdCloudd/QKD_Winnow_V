@@ -39,12 +39,17 @@ struct test_result
 };
 
 std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements);
-std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations, std::vector<double> bit_error_rates);
-size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_array, size_t array_length,
-                 const std::vector<size_t> &trial_combination, bool shuffle_bits, int *const output_alice_bit_array, int *const output_bob_bit_array);
-test_result run_test(const test_combination combination, size_t seed);
+std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations,
+                                                   std::vector<double> bit_error_rates);
+void run_trial(std::vector<int> &alice_bit_array,
+                 std::vector<int> &bob_bit_array,
+                 const std::vector<size_t> &trial_combination,
+                 size_t seed);
+test_result run_test(const test_combination combination,
+                     size_t seed);
 std::vector<test_result> run_simulation(const std::vector<test_combination> &combinations);
 std::string get_trial_combination_string(const std::vector<size_t> &combination);
 std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &combination);
 std::string get_header_block_size_string(const std::vector<size_t> &combination);
-void write_file(const std::vector<test_result> &data, fs::path directory);
+void write_file(const std::vector<test_result> &data, 
+                fs::path directory);

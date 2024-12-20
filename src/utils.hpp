@@ -10,5 +10,6 @@
 
 namespace fs = std::filesystem;
 
-void print_array(const int *const bit_array, size_t array_length, size_t block_length);
+void print_array(const std::vector<int> &bit_array,
+                 const size_t &block_length);
 

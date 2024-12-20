@@ -11,22 +11,24 @@
 #include "config.hpp"
 #include "utils.hpp"
 
-struct winnow_result
-{
-    size_t result_array_length{};
-    bool last_block_with_error{};
-};
-
-void discard_bits_for_parity_check(const int *const source_bit_array, const size_t &source_array_length,
-                                   int *const destination_bit_array, const size_t &syndrome_power);
-void discard_bits_for_syndrome(const int *const source_bit_block, int *const destination_bit_block,
+void discard_bits_for_parity_check(const std::vector<int> &source_bit_array,
+                                   std::vector<int> &destination_bit_array, 
+                                   const size_t &syndrome_length);
+void discard_bits_for_syndrome(std::vector<int>::const_iterator source_bit_block, 
+                               std::vector<int>::iterator destination_bit_block,
                                const std::vector<int> &discarded_bit_positions);
-bool calculate_block_parity(const int *const bit_block, const size_t &block_length);
-int **calculate_Hamming_hash_matrix(size_t syndrome_power);
-void calculate_syndrome(const int *const bit_block, const size_t &syndrome_power, const size_t &block_length,
-                        const int *const *hash_matrix, int *const output_syndrome);                               
-void correct_error(int *const bit_block, const int *const first_syndrome, const int *const second_syndrome,
-                   const size_t &syndrome_power);
-winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
-              const int* const* hash_mat, int *const output_alice_bit_array, int *const output_bob_bit_array);                
+bool calculate_block_parity(std::vector<int>::const_iterator bit_block, 
+                            const size_t &block_length);
+std::vector<std::vector<int>> construct_Hamming_hash_matrix(const size_t &syndrome_length);
+void calculate_syndrome(std::vector<int>::const_iterator bit_block,
+                        const size_t &block_length,
+                        const std::vector<std::vector<int>> &hash_matrix, 
+                        std::vector<int> &output_syndrome);                               
+void correct_error(std::vector<int>::iterator bit_block, 
+                   const std::vector<int> &first_syndrome, 
+                   const std::vector<int> &second_syndrome);
+bool winnow(std::vector<int> &alice_bit_array,
+            std::vector<int> &bob_bit_array, 
+            const size_t &syndrome_length,
+            const std::vector<std::vector<int>> &hash_mat);                
 

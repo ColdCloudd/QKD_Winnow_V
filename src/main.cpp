@@ -11,7 +11,6 @@ int main()
 {
     try
     {
-        
         CFG = get_config_data(CONFIG_PATH);
         
         std::vector<std::vector<size_t>> trial_combinations {};
