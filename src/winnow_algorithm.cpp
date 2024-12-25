@@ -29,9 +29,9 @@ void discard_bits_for_syndrome(std::vector<int>::const_iterator source_bit_block
     }
 }
 
-// Calculates the parity bit for a block
-bool calculate_block_parity(std::vector<int>::const_iterator bit_block, 
-                            const size_t &block_length)
+// Calculates the parity of a bit block
+bool calculate_parity(std::vector<int>::const_iterator bit_block, 
+                      const size_t &block_length)
 {
     return std::accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
 }
@@ -92,12 +92,11 @@ void correct_error(std::vector<int>::iterator bit_block,
     }
 }
 
-bool winnow(std::vector<int> &alice_bit_array,
-            std::vector<int> &bob_bit_array, 
-            const size_t &syndrome_length,
-            const std::vector<std::vector<int>> &hash_mat)
+bool winnow_trace(std::vector<int> &alice_bit_array,
+                  std::vector<int> &bob_bit_array, 
+                  const size_t &syndrome_length,
+                  const std::vector<std::vector<int>> &hash_mat)
 {
-    
     size_t block_len = static_cast<size_t>(pow(2, syndrome_length));
     size_t array_length = alice_bit_array.size();
     size_t blocks_cnt = array_length / block_len;
@@ -106,17 +105,14 @@ bool winnow(std::vector<int> &alice_bit_array,
     diff_par_blocks.reserve(blocks_cnt);
     for (size_t i = 0; i < array_length; i += block_len)
     {
-        if (calculate_block_parity(alice_bit_array.begin() + i, block_len) != calculate_block_parity(bob_bit_array.begin() + i, block_len))
+        if (calculate_parity(alice_bit_array.begin() + i, block_len) != calculate_parity(bob_bit_array.begin() + i, block_len))
         {
             diff_par_blocks.push_back(static_cast<int>(i / block_len));
         }
     }
 
-    if(CFG.TRACE_WINNOW)
-    {
-        fmt::print(fg(fmt::color::blue), "______________WINNOW_TRACE______________\n");
-        fmt::print(fg(fmt::color::blue), "{}      - Numbers of blocks with detected errors\n", fmt::join(diff_par_blocks, " "));
-    }
+    fmt::print(fg(fmt::color::blue), "______________WINNOW_TRACE______________\n");
+    fmt::print(fg(fmt::color::blue), "{}      - Numbers of blocks with detected errors\n", fmt::join(diff_par_blocks, " "));
     
     size_t priv_amp_arr_len = array_length - static_cast<size_t>(array_length / block_len);
     std::vector<int> alice_priv_amp(priv_amp_arr_len);
@@ -126,18 +122,15 @@ bool winnow(std::vector<int> &alice_bit_array,
     discard_bits_for_parity_check(alice_bit_array, alice_priv_amp, syndrome_length);
     discard_bits_for_parity_check(bob_bit_array, bob_priv_amp, syndrome_length);
 
-    if(CFG.TRACE_WINNOW)
-    {
-        print_array(alice_bit_array, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key\n");
-        print_array(bob_bit_array, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key\n");
+    print_array(alice_bit_array, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Alice's key\n");
+    print_array(bob_bit_array, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Bob's key\n");
 
-        print_array(alice_priv_amp, block_len - 1);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after first privacy maintenance\n");
-        print_array(bob_priv_amp, block_len - 1);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after first privacy maintenance\n");
-    }
+    print_array(alice_priv_amp, block_len - 1);
+    fmt::print(fg(fmt::color::blue), "      - Alice's key after first privacy maintenance\n");
+    print_array(bob_priv_amp, block_len - 1);
+    fmt::print(fg(fmt::color::blue), "      - Bob's key after first privacy maintenance\n");     
 
     block_len -= 1;
     // Alice and Bob syndromes
@@ -151,13 +144,10 @@ bool winnow(std::vector<int> &alice_bit_array,
         correct_error(alice_priv_amp.begin() + (diff_par_blocks[i] * block_len), alice_syn, bob_syn);
     }
 
-    if(CFG.TRACE_WINNOW)
-    {
-        print_array(alice_priv_amp, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after error correction\n");
-        print_array(bob_priv_amp, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after error correction\n");
-    }
+    print_array(alice_priv_amp, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Alice's key after error correction\n");
+    print_array(bob_priv_amp, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Bob's key after error correction\n");
 
     size_t remain_bits_cnt = block_len - syndrome_length; // Number of remaining bits in blocks for which syndromes were calculated
     size_t out_arr_len = priv_amp_arr_len - diff_par_blocks.size() * syndrome_length;
@@ -216,14 +206,79 @@ bool winnow(std::vector<int> &alice_bit_array,
         last_block_with_error = true;
     }
 
-    if(CFG.TRACE_WINNOW)
+    print_array(alice_bit_array, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Alice's key after second privacy maintenance\n");
+    print_array(bob_bit_array, block_len);
+    fmt::print(fg(fmt::color::blue), "      - Bob's key after second privacy maintenance\n");
+    fmt::print(fg(fmt::color::blue), "______________WINNOW_TRACE______________\n");
+
+    return last_block_with_error;
+}
+
+bool winnow(std::vector<int> &alice_bit_array,
+            std::vector<int> &bob_bit_array, 
+            const size_t &syndrome_length,
+            const std::vector<std::vector<int>> &hash_mat)
+{
+    size_t init_block_len = static_cast<size_t>(pow(2, static_cast<double>(syndrome_length)));
+    size_t block_len = init_block_len - 1;              // Block length after removing one bit to maintain privacy
+    size_t init_arr_len = alice_bit_array.size();
+    
+    std::vector<int> alice_bit_arr = alice_bit_array;
+    std::vector<int> bob_bit_arr = bob_bit_array;
+
+    // Contains bounds that specify valid bits [from 2^0, 2^1, ... , 2^(syndrome_length-1)],
+    // and the last index (2^syndrome_length) which is the right boundary
+    std::vector<int> disc_bit_pos(syndrome_length + 1);
+    for (size_t i = 0; i < disc_bit_pos.size(); ++i)
     {
-        print_array(alice_bit_array, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after second privacy maintenance\n");
-        print_array(bob_bit_array, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after second privacy maintenance\n");
-        fmt::print(fg(fmt::color::blue), "______________WINNOW_TRACE______________\n");
+        disc_bit_pos[i] = static_cast<int>(pow(2, i) - 1);
     }
+
+    size_t dest_curr_index = 0;        // Is used to keep track of the current starting position for writing to the destination array
+    size_t synd_msg_cnt = 0;         // Number of calculated syndromes based on the results of the pass 
+    size_t remain_bits_cnt = block_len - syndrome_length;       // The number of bits remaining in the block after deletion to maintain privacy (as a result of the syndrome calculation)
+
+    std::vector<int> alice_syn(syndrome_length);
+    std::vector<int> bob_syn(syndrome_length);
+
+    size_t curr_block_begin = 0;
+    bool last_block_with_error = false;    // Used to account for the number of bits to be removed for padding
+    size_t last_block_index = init_arr_len - init_block_len;    // Index of first element of the last block
+
+    std::vector<int>::iterator alice_curr_block_begin {};
+    std::vector<int>::iterator bob_curr_block_begin {};
+    for (size_t i = 0; i < init_arr_len; i += init_block_len)
+    {
+        curr_block_begin = i + 1;   // !!! Starting with the second bit in the block, since the first one is removed as a result of maintaining privacy !!!
+        alice_curr_block_begin = (alice_bit_arr.begin() + curr_block_begin);     
+        bob_curr_block_begin = (bob_bit_arr.begin() + curr_block_begin);
+        if (calculate_parity(alice_bit_arr.begin() + i, init_block_len) == calculate_parity(bob_bit_arr.begin() + i, init_block_len))   // If the parity matches, remove the first bit from each block
+        {
+            std::copy(alice_curr_block_begin, alice_bit_arr.begin() + (i + init_block_len), alice_bit_array.begin() + dest_curr_index);
+            std::copy(bob_curr_block_begin, bob_bit_arr.begin() + (i + init_block_len), bob_bit_array.begin() + dest_curr_index);
+            dest_curr_index += block_len;
+        }
+        else    // Remove the first bit from each block + `syndrome_length`-bits 
+        {
+            calculate_syndrome(alice_curr_block_begin, block_len, hash_mat, alice_syn);
+            calculate_syndrome(bob_curr_block_begin, block_len, hash_mat, bob_syn);
+            correct_error(alice_curr_block_begin, alice_syn, bob_syn);
+            discard_bits_for_syndrome(alice_curr_block_begin, alice_bit_array.begin() + dest_curr_index, disc_bit_pos);
+            discard_bits_for_syndrome(bob_curr_block_begin, bob_bit_array.begin() + dest_curr_index, disc_bit_pos);
+            dest_curr_index += remain_bits_cnt;
+            ++synd_msg_cnt;
+            if (i == last_block_index)
+            {
+                last_block_with_error=true;
+            }
+        }
+    }
+
+    size_t blocks_cnt = init_arr_len / init_block_len;
+    size_t arr_len = init_arr_len - blocks_cnt - synd_msg_cnt * syndrome_length;
+    alice_bit_array.resize(arr_len);
+    bob_bit_array.resize(arr_len);
 
     return last_block_with_error;
 }

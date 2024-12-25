@@ -1,8 +1,8 @@
 {
     "threads_number": 16,
-    "trials_number": 1000,
+    "trials_number": 10,
     "use_config_simulation_seed": true,
-    "simulation_seed": 231020243,
+    "simulation_seed": 777,
     "shuffle_mode": true,
     "sifted_key_length": 10240,
     "initial_syndrome_length": 3,
@@ -15,7 +15,7 @@
         [0, 1, 2, 3, 4, 5],
         [0, 1, 2, 3, 4, 5]
     ],
-    "use_specified_combinations": true,
-    "combinations": [[5,0,0,0,0,0], [0,5,0,0,0,0], [0,0,5,0,0,0], [0,0,0,5,0,0], [0,0,0,0,5,0], [0,0,0,0,0,5]],
+    "use_specified_combinations": false,
+    "combinations": [[4,4,4,4,4]],
     "trace_winnow": false
 }

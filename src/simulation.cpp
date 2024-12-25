@@ -82,8 +82,12 @@ void run_trial(std::vector<int> &alice_bit_array,
                     padding = true;
                 }
             }
+
+            if (CFG.TRACE_WINNOW)
+                last_block_with_error = winnow_trace(alice_bit_array, bob_bit_array, syndrome_length, hash_mat);
+            else
+                last_block_with_error = winnow(alice_bit_array, bob_bit_array, syndrome_length, hash_mat);
             
-            last_block_with_error = winnow(alice_bit_array, bob_bit_array, syndrome_length, hash_mat);
             curr_array_length = alice_bit_array.size();
             if(padding)
             {

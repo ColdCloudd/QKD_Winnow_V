@@ -8,8 +8,6 @@ config_data CFG {};
 
 int main()
 {
-    CFG.TRACE_WINNOW = true;
-
     const size_t ARR_LEN = 32;
     std::vector<int> alice_arr = 
     {
@@ -32,6 +30,6 @@ int main()
     size_t syndrome_length = 3;
     std::vector<std::vector<int>> hash_mat = construct_Hamming_hash_matrix(syndrome_length);
 
-    winnow(alice_arr, bob_arr, syndrome_length, hash_mat);
+    winnow_trace(alice_arr, bob_arr, syndrome_length, hash_mat);
 
 }
