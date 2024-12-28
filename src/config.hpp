@@ -25,6 +25,16 @@ struct config_data
     // Bit shuffling between winnow iterations
     bool SHUFFLE_MODE{};
 
+    // Measurement of protocol throughput (T). As the ratio of the number of bits remaining after protocol execution to the protocol run time (bits/s). 
+    // It is recommended to perform experiments in single-threaded mode.
+    bool ENABLE_THROUGHPUT_MEASUREMENT{};
+
+    // Take RTT into account when calculating protocol throughput.
+    bool CONSIDER_RTT{};
+
+    // RTT (Round-Trip Time) in milliseconds.
+    size_t RTT{};
+
     // Initial key size
     size_t SIFTED_KEY_LENGTH{};
 

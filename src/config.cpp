@@ -45,6 +45,15 @@ config_data get_config_data(fs::path config_path)
         }
         
         cfg.SHUFFLE_MODE = config["shuffle_mode"].template get<bool>();
+        cfg.ENABLE_THROUGHPUT_MEASUREMENT = config["enable_throughput_measurement"].template get<bool>();
+        if (cfg.ENABLE_THROUGHPUT_MEASUREMENT)
+        {
+            fmt::print(fg(fmt::color::purple), "WARNING: Throughput measurement is enabled. It is recommended to perform experiments in single-threaded mode.\n");
+
+            cfg.CONSIDER_RTT = config["consider_RTT"].template get<bool>();
+            if (cfg.CONSIDER_RTT)
+                cfg.RTT = config["RTT"].template get<size_t>();
+        }
 
         cfg.SIFTED_KEY_LENGTH = config["sifted_key_length"].template get<size_t>();
         if (cfg.SIFTED_KEY_LENGTH < 8)

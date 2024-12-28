@@ -56,11 +56,11 @@ void run_trial(std::vector<int> &alice_bit_array,
     size_t initial_array_length = alice_bit_array.size();
     size_t curr_array_length = alice_bit_array.size();
    
-    for (size_t i = 0; i < trial_combination.size(); i++)
+    for (size_t i = 0; i < trial_combination.size(); ++i)
     {
         block_length = static_cast<size_t>(pow(2, syndrome_length));
         std::vector<std::vector<int>> hash_mat = construct_Hamming_hash_matrix(syndrome_length);
-        for (size_t j = 0; j < trial_combination[i]; j++)
+        for (size_t j = 0; j < trial_combination[i]; ++j)
         {
             last_incompl_block_length = curr_array_length % block_length; // Before each Winnow run, сalculates the length of the last block
             
@@ -136,14 +136,29 @@ test_result run_test(const test_combination combination,
     XoshiroCpp::Xoshiro256PlusPlus prng(seed);
     std::uniform_int_distribution<size_t> distribution(0, std::numeric_limits<size_t>::max());
 
-    for (size_t i = 0; i < CFG.TRIALS_NUMBER; i++)
+    std::vector<std::chrono::microseconds> runtimes;
+    if (CFG.ENABLE_THROUGHPUT_MEASUREMENT)
+        runtimes.resize(CFG.TRIALS_NUMBER);
+
+    for (size_t i = 0; i < CFG.TRIALS_NUMBER; ++i)
     {
         alice_bit_array.resize(CFG.SIFTED_KEY_LENGTH);
         bob_bit_array.resize(CFG.SIFTED_KEY_LENGTH);
 
         fill_random_bits(prng, alice_bit_array);
         introduce_errors(prng, alice_bit_array, combination.QBER, bob_bit_array);
-        run_trial(alice_bit_array, bob_bit_array, combination.trial_combination, distribution(prng));
+        
+        if (CFG.ENABLE_THROUGHPUT_MEASUREMENT)
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            run_trial(alice_bit_array, bob_bit_array, combination.trial_combination, distribution(prng));
+            auto end = std::chrono::high_resolution_clock::now();
+            runtimes[i] = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        }
+        else
+        {
+            run_trial(alice_bit_array, bob_bit_array, combination.trial_combination, distribution(prng));
+        }
 
         error_positions_array.resize(alice_bit_array.size());
         calculate_error_positions(alice_bit_array, bob_bit_array, error_positions_array);
@@ -153,6 +168,7 @@ test_result run_test(const test_combination combination,
         final_qbers[i] = static_cast<double>(errors_number) / static_cast<double>(alice_bit_array.size());
         final_fractions[i] = static_cast<double>(alice_bit_array.size()) / static_cast<double>(CFG.SIFTED_KEY_LENGTH);
     }
+    test_result result;
 
     frame_error_rate /= static_cast<double>(CFG.TRIALS_NUMBER);
 
@@ -164,7 +180,7 @@ test_result run_test(const test_combination combination,
         [final_qber_mean](double acc, double val) {
             return acc + std::pow(val - final_qber_mean, 2);
         });
-    double final_qber_std_dev = sqrt(final_qber_variance / CFG.TRIALS_NUMBER);
+    double final_qber_std_dev = sqrt(final_qber_variance / static_cast<double>(CFG.TRIALS_NUMBER));
 
     double final_fraction_mean = std::accumulate(final_fractions.begin(), final_fractions.end(), 0.) / static_cast<double>(CFG.TRIALS_NUMBER);
     auto final_fraction_minmax = std::minmax_element(final_fractions.begin(), final_fractions.end());
@@ -174,12 +190,73 @@ test_result run_test(const test_combination combination,
         [final_fraction_mean](double acc, double val) {
             return acc + std::pow(val - final_fraction_mean, 2);
         });
-    double final_fraction_std_dev = sqrt(final_fraction_variance / CFG.TRIALS_NUMBER);
+    double final_fraction_std_dev = sqrt(final_fraction_variance / static_cast<double>(CFG.TRIALS_NUMBER));
 
-    test_result result;
+    if (CFG.ENABLE_THROUGHPUT_MEASUREMENT)
+    {
+        double out_key_length{};
+        const double MICROSECONDS_IN_SECOND = 1000000.;
+        const double MICROSECONDS_IN_MILLISECOND = 1000.;
+        double curr_throughput{};
+        double throughput_max = 0;
+        double throughput_min = std::numeric_limits<double>::max();
+        double throughput_mean = 0;
+        double throughput_std_dev = 0;
+        double message_count = 2. * static_cast<double>(std::accumulate(
+            combination.trial_combination.begin(), combination.trial_combination.end(), 0));    // Number of network interactions between Alice and Bob 
+
+        for (size_t i = 0; i < runtimes.size(); ++i)
+        {
+            out_key_length = final_fractions[i] * static_cast<double>(CFG.SIFTED_KEY_LENGTH);
+            if (CFG.CONSIDER_RTT)
+            {
+                curr_throughput = out_key_length * MICROSECONDS_IN_SECOND / 
+                (static_cast<double>(runtimes[i].count()) + static_cast<double>(CFG.RTT) * MICROSECONDS_IN_MILLISECOND * message_count);    // bits/s
+            }
+            else
+            {
+                curr_throughput = out_key_length * MICROSECONDS_IN_SECOND / static_cast<double>(runtimes[i].count());   // bits/s
+            }
+
+            throughput_mean += curr_throughput;
+            if (curr_throughput > throughput_max)
+            {
+                throughput_max = curr_throughput;
+            }
+            if (curr_throughput < throughput_min)
+            {
+                throughput_min = curr_throughput;
+            }
+        }
+        throughput_mean /= static_cast<double>(CFG.TRIALS_NUMBER);
+        
+        for (size_t i = 0; i < runtimes.size(); ++i)
+        {
+            out_key_length = final_fractions[i] * static_cast<double>(CFG.SIFTED_KEY_LENGTH);
+            if (CFG.CONSIDER_RTT)
+            {
+                curr_throughput = out_key_length * MICROSECONDS_IN_SECOND / 
+                (static_cast<double>(runtimes[i].count()) + static_cast<double>(CFG.RTT) * MICROSECONDS_IN_MILLISECOND * message_count);    // bits/s
+            }
+            else
+            {
+                curr_throughput = out_key_length * MICROSECONDS_IN_SECOND / static_cast<double>(runtimes[i].count());   // bits/s
+            }
+            throughput_std_dev += pow((curr_throughput - throughput_mean), 2);
+        }
+        throughput_std_dev /= static_cast<double>(CFG.TRIALS_NUMBER);
+        throughput_std_dev = sqrt(throughput_std_dev);
+        
+        result.throughput_max = static_cast<size_t>(throughput_max);
+        result.throughput_min = static_cast<size_t>(throughput_min);
+        result.throughput_mean = static_cast<size_t>(throughput_mean);
+        result.throughput_std_dev = static_cast<size_t>(throughput_std_dev);
+    }
+    
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
-    result.initial_qber = static_cast<double>(static_cast<size_t>(CFG.SIFTED_KEY_LENGTH * combination.QBER)) / CFG.SIFTED_KEY_LENGTH; // Exact QBER in the key.
+    result.initial_qber = static_cast<double>(static_cast<size_t>(static_cast<float>(CFG.SIFTED_KEY_LENGTH) 
+    * combination.QBER)) / static_cast<double>(CFG.SIFTED_KEY_LENGTH); // Exact QBER in the key.
 
     result.frame_error_rate = frame_error_rate;
 
@@ -303,8 +380,9 @@ void write_file(const std::vector<test_result> &data,
         {
             fs::create_directories(directory);
         }
-        std::string base_filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) 
-        +  ",key_length=" + std::to_string(CFG.SIFTED_KEY_LENGTH) + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ")";
+        std::string base_filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + ((CFG.SHUFFLE_MODE)?"on":"off") 
+        +  ",key_length=" + std::to_string(CFG.SIFTED_KEY_LENGTH) + ((CFG.ENABLE_THROUGHPUT_MEASUREMENT && CFG.CONSIDER_RTT) ? 
+        (",RTT=" + std::to_string(CFG.RTT)):"") + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ")";
         std::string extension = ".csv";
         fs::path result_file_path = directory / (base_filename + extension);
 
@@ -318,12 +396,15 @@ void write_file(const std::vector<test_result> &data,
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
         fout << "№;TRIAL_COMBINATION;"<< get_header_block_size_string(data[0].trial_combination) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
-             << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER\n";
+             << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER" 
+             << ((CFG.ENABLE_THROUGHPUT_MEASUREMENT) ? ";THROUGHPUT_MEAN;THROUGHPUT_STD_DEV;THROUGHPUT_MIN;THROUGHPUT_MAX" : "") <<"\n";
         for (size_t i = 0; i < data.size(); i++)
         {
             fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";"<< get_num_pass_with_block_size_sequence_string(data[i].trial_combination) << ";"
                  << data[i].initial_qber << ";" << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
-                 << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << ";" << data[i].frame_error_rate << "\n";
+                 << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << ";" << data[i].frame_error_rate 
+                 << ((CFG.ENABLE_THROUGHPUT_MEASUREMENT) ? (";" + std::to_string(data[i].throughput_mean) + ";" + std::to_string(data[i].throughput_std_dev) + ";" + std::to_string(data[i].throughput_min) + ";"
+                 + std::to_string(data[i].throughput_max)):"") << "\n";
         }
         fout.close();
     }

@@ -1,6 +1,8 @@
 #pragma once
 #include <random>
 #include <vector>
+#include <chrono>
+#include <limits>
 #include <numeric>
 #include <cstdlib>
 
@@ -23,19 +25,24 @@ struct test_result
 {
     int test_number{};
     std::vector<size_t> trial_combination{};
-    double initial_qber{};      // Exact QBER in the key.
+    double initial_qber{};              // Exact QBER in the key.
 
-    double frame_error_rate{};
+    double frame_error_rate{};          // Frequency that the protocol failed to correct all errors in the key.
     
-    double final_qber_mean{};
+    double final_qber_mean{};           // Statistical characteristics of the QBER key value after protocol execution.
     double final_qber_std_dev{};
     double final_qber_min{};
     double final_qber_max{};
 
-    double final_fraction_mean{};
+    double final_fraction_mean{};       // Statistical characteristics of the value of the retained key fraction after protocol execution.
     double final_fraction_std_dev{};
     double final_fraction_min{};
     double final_fraction_max{};
+
+    size_t throughput_max{};            // Throughput is measured as the ratio of the number of bits remaining after protocol execution to the protocol run time (bits/s).
+    size_t throughput_min{};
+    size_t throughput_mean{};
+    size_t throughput_std_dev{};
 };
 
 std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements);
