@@ -1,48 +1,69 @@
 #include "simulation.hpp"
 
-// Computes combinations of runs, based on given elements as the Cartesian product of vectors
-std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements)
+// Computes schedules of runs, based on given elements as the Cartesian product of vectors
+std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> schedule_elements)
 {
     auto product = [](long long a, std::vector<size_t> &b)
     { return a * b.size(); };
-    const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
-    std::vector<std::vector<size_t>> result(combination_number, std::vector<size_t>(trial_elements.size()));
-    for (long long n = 0; n < combination_number; ++n)
+    const long long schedules_number = accumulate(schedule_elements.begin(), schedule_elements.end(), 1LL, product);
+    std::vector<std::vector<size_t>> result(schedules_number, std::vector<size_t>(schedule_elements.size()));
+    for (long long n = 0; n < schedules_number; ++n)
     {
         std::lldiv_t q{n, 0};
-        for (long long i = trial_elements.size() - 1; 0 <= i; --i)
+        for (long long i = schedule_elements.size() - 1; 0 <= i; --i)
         {
-            q = std::div(q.quot, trial_elements[i].size());
-            result[n][i] = trial_elements[i][q.rem];
+            q = std::div(q.quot, schedule_elements[i].size());
+            result[n][i] = schedule_elements[i][q.rem];
         }
     }
     return result;
 }
 
-// Generates combinations of runs consisting of the run number, combinations that determine
+// Generates combinations of runs consisting of the run number, schedules that determine
 // the number of Winnow runs with a given block size, and the QBER probability
-std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations,
-                                                   std::vector<double> bit_error_rates)
+std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& schedules,
+                                                   std::vector<double> qbers)
 {
-    std::vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
-    size_t test_number = 0;
-    for (size_t i = 0; i < trial_combinations.size(); i++)
+    std::vector<test_combination> test_combs(schedules.size() * qbers.size());
+    int test_number = 0;
+    for (size_t i = 0; i < schedules.size(); ++i)
     {
-        for (size_t j = 0; j < bit_error_rates.size(); j++)
+        for (size_t j = 0; j < qbers.size(); ++j)
         {
-            combinations[test_number].test_number = test_number;
-            combinations[test_number].trial_combination = trial_combinations[i];
-            combinations[test_number].QBER = bit_error_rates[j];
-            test_number++;
+            test_combs[test_number].test_number = test_number;
+            test_combs[test_number].schedule = schedules[i];
+            test_combs[test_number].QBER = static_cast<float>(qbers[j]);
+            ++test_number;
         }
     }
-    return combinations;
+    return test_combs;
+}
+
+// Generates combinations of runs consisting of the run number, schedules that determine
+// the number of Winnow runs with a given block size, and the QBER probability
+std::vector<test_combination> prepare_combinations(const std::vector<specified_combination>& combinations)
+{
+    std::vector<test_combination> test_combs{};
+    int test_number = 0;
+    for (size_t i = 0; i < combinations.size(); ++i)
+    {
+        for (size_t j = 0; j < combinations[i].qbers.size(); ++j)
+        {
+            test_combination test_comb{};
+            test_comb.test_number = test_number;
+            test_comb.schedule = combinations[i].schedule;
+            test_comb.QBER = static_cast<float>(combinations[i].qbers[j]);
+            test_combs.push_back(test_comb);
+            ++test_number;
+        }
+    }
+    return test_combs;
 }
 
 // Runs the Winnow algorithm sequentially several times with different block sizes
 void run_trial(std::vector<int> &alice_bit_array,
                std::vector<int> &bob_bit_array,
-               const std::vector<size_t> &trial_combination,
+               const std::vector<size_t> &schedule,
                size_t seed)
 {
     bool shuffle_bits = CFG.SHUFFLE_MODE;
@@ -56,11 +77,11 @@ void run_trial(std::vector<int> &alice_bit_array,
     size_t initial_array_length = alice_bit_array.size();
     size_t curr_array_length = alice_bit_array.size();
    
-    for (size_t i = 0; i < trial_combination.size(); ++i)
+    for (size_t i = 0; i < schedule.size(); ++i)
     {
         block_length = static_cast<size_t>(pow(2, syndrome_length));
         std::vector<std::vector<int>> hash_mat = construct_Hamming_hash_matrix(syndrome_length);
-        for (size_t j = 0; j < trial_combination[i]; ++j)
+        for (size_t j = 0; j < schedule[i]; ++j)
         {
             last_incompl_block_length = curr_array_length % block_length; // Before each Winnow run, сalculates the length of the last block
             
@@ -151,13 +172,13 @@ test_result run_test(const test_combination combination,
         if (CFG.ENABLE_THROUGHPUT_MEASUREMENT)
         {
             auto start = std::chrono::high_resolution_clock::now();
-            run_trial(alice_bit_array, bob_bit_array, combination.trial_combination, distribution(prng));
+            run_trial(alice_bit_array, bob_bit_array, combination.schedule, distribution(prng));
             auto end = std::chrono::high_resolution_clock::now();
             runtimes[i] = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         }
         else
         {
-            run_trial(alice_bit_array, bob_bit_array, combination.trial_combination, distribution(prng));
+            run_trial(alice_bit_array, bob_bit_array, combination.schedule, distribution(prng));
         }
 
         error_positions_array.resize(alice_bit_array.size());
@@ -203,7 +224,7 @@ test_result run_test(const test_combination combination,
         double throughput_mean = 0;
         double throughput_std_dev = 0;
         double message_count = 2. * static_cast<double>(std::accumulate(
-            combination.trial_combination.begin(), combination.trial_combination.end(), 0));    // Number of network interactions between Alice and Bob 
+            combination.schedule.begin(), combination.schedule.end(), 0));    // Number of network interactions between Alice and Bob 
 
         for (size_t i = 0; i < runtimes.size(); ++i)
         {
@@ -254,7 +275,7 @@ test_result run_test(const test_combination combination,
     }
     
     result.test_number = combination.test_number;
-    result.trial_combination = combination.trial_combination;
+    result.schedule = combination.schedule;
     result.initial_qber = static_cast<double>(static_cast<size_t>(static_cast<float>(CFG.SIFTED_KEY_LENGTH) 
     * combination.QBER)) / static_cast<double>(CFG.SIFTED_KEY_LENGTH); // Exact QBER in the key.
 
@@ -322,13 +343,13 @@ std::vector<test_result> run_simulation(const std::vector<test_combination> &com
 }
 
 // Returns the combination as a python tuple in string format
-std::string get_trial_combination_string(const std::vector<size_t> &combination)
+std::string get_schedule_string(const std::vector<size_t> &schedule)
 {
     std::string comb_str = "(";
-    for (size_t i = 0; i < combination.size(); i++)
+    for (size_t i = 0; i < schedule.size(); i++)
     {
-        comb_str += std::to_string(combination[i]);
-        if (i < combination.size() - 1)
+        comb_str += std::to_string(schedule[i]);
+        if (i < schedule.size() - 1)
         {
             comb_str += ", ";
         }
@@ -338,13 +359,13 @@ std::string get_trial_combination_string(const std::vector<size_t> &combination)
 }
 
 // Returns the run represented by the sequence (example: 0;2;1 - 0 passes with block size 8, then 2 passes with block size 16 and 1 pass with block size 32).
-std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &combination)
+std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &schedule)
 {
     std::string seq_str = "";
-    for (size_t i = 0; i < combination.size(); i++)
+    for (size_t i = 0; i < schedule.size(); i++)
     {
-        seq_str += std::to_string(combination[i]);
-        if (i < combination.size() - 1)
+        seq_str += std::to_string(schedule[i]);
+        if (i < schedule.size() - 1)
         {
             seq_str += ";";
         }
@@ -353,15 +374,15 @@ std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_
 }
 
 // Returns a block size header (example: N=8;N=16;N=32 ...).
-std::string get_header_block_size_string(const std::vector<size_t> &combination)
+std::string get_header_block_size_string(const std::vector<size_t> &schedule)
 {
     std::string header_str = "";
     size_t syndrome_length = CFG.INITIAL_SYNDROME_LENGTH;
-    for (size_t i = 0; i < combination.size(); i++)
+    for (size_t i = 0; i < schedule.size(); i++)
     {
         header_str += "N=";
         header_str += std::to_string(static_cast<size_t>(pow(2, syndrome_length)));
-        if (i < combination.size() - 1)
+        if (i < schedule.size() - 1)
         {
             header_str += ";";
         }
@@ -395,12 +416,12 @@ void write_file(const std::vector<test_result> &data,
 
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
-        fout << "№;TRIAL_COMBINATION;"<< get_header_block_size_string(data[0].trial_combination) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
+        fout << "№;SCHEDULE;"<< get_header_block_size_string(data[0].schedule) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
              << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER" 
              << ((CFG.ENABLE_THROUGHPUT_MEASUREMENT) ? ";THROUGHPUT_MEAN;THROUGHPUT_STD_DEV;THROUGHPUT_MIN;THROUGHPUT_MAX" : "") <<"\n";
-        for (size_t i = 0; i < data.size(); i++)
+        for (size_t i = 0; i < data.size(); ++i)
         {
-            fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";"<< get_num_pass_with_block_size_sequence_string(data[i].trial_combination) << ";"
+            fout << data[i].test_number << ";" << get_schedule_string(data[i].schedule) << ";"<< get_num_pass_with_block_size_sequence_string(data[i].schedule) << ";"
                  << data[i].initial_qber << ";" << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
                  << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << ";" << data[i].frame_error_rate 
                  << ((CFG.ENABLE_THROUGHPUT_MEASUREMENT) ? (";" + std::to_string(data[i].throughput_mean) + ";" + std::to_string(data[i].throughput_std_dev) + ";" + std::to_string(data[i].throughput_min) + ";"

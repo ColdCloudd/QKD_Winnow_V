@@ -79,31 +79,44 @@ config_data get_config_data(fs::path config_path)
         cfg.USE_SPECIFIED_COMBINATIONS = config["use_specified_combinations"].template get<bool>();
         if (cfg.USE_SPECIFIED_COMBINATIONS)
         {
-            cfg.COMBINATIONS = config["combinations"].template get<std::vector<std::vector<size_t>>>();
-            if (cfg.COMBINATIONS.empty())
+            auto combinations = config["specified_combinations"];
+            for (size_t i = 0; i < combinations.size(); i++)
             {
-                throw std::runtime_error("Vector 'combinations' cannot be empty!");
-            }
-            for (size_t i = 0; i < cfg.COMBINATIONS.size(); i++)
-            {
-                if (cfg.COMBINATIONS[i].empty())
+                if (combinations[i].size() != 2)
                 {
-                    throw std::runtime_error("Vector 'combinations' cannot be empty!");
+                    throw std::runtime_error("Format error of a combination located in the 'specified_combinations' vector!");
                 }
+                std::vector<size_t> schedule = combinations[i][0].get<std::vector<size_t>>();
+                std::vector<double> qbers = combinations[i][1].get<std::vector<double>>();
+                if (schedule.empty() || qbers.empty())
+                {
+                    throw std::runtime_error("There should be no empty vectors in the 'specified_combinations' vector element!");
+                }
+                for (size_t i = 0; i < qbers.size(); i++)
+                {
+                    if (qbers[i] <= 0. || qbers[i] >= 1.)
+                    {
+                        throw std::runtime_error("QBER must be: 0 < QBER < 1!");
+                    }
+                }
+                specified_combination spec_comb{};
+                spec_comb.schedule = schedule;
+                spec_comb.qbers = qbers;
+                cfg.SPECIFIED_COMBINATIONS.push_back(spec_comb);
             }
         }
         else
         {
-            cfg.COMBINATION_ELEMENTS = config["combination_elements"].template get<std::vector<std::vector<size_t>>>();
-            if (cfg.COMBINATION_ELEMENTS.empty())
+            cfg.SCHEDULE_ELEMENTS = config["schedule_elements"].template get<std::vector<std::vector<size_t>>>();
+            if (cfg.SCHEDULE_ELEMENTS.empty())
             {
-                throw std::runtime_error("Vector 'combination_elements' cannot be empty!");
+                throw std::runtime_error("Vector 'schedule_elements' cannot be empty!");
             }
-            for (size_t i = 0; i < cfg.COMBINATION_ELEMENTS.size(); i++)
+            for (size_t i = 0; i < cfg.SCHEDULE_ELEMENTS.size(); i++)
             {
-                if (cfg.COMBINATION_ELEMENTS[i].empty())
+                if (cfg.SCHEDULE_ELEMENTS[i].empty())
                 {
-                    throw std::runtime_error("Vector 'combination_elements' cannot be empty!");
+                    throw std::runtime_error("Vector 'schedule_elements' cannot be empty!");
                 }
             }
         }

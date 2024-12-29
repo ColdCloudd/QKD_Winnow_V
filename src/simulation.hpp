@@ -17,14 +17,14 @@
 struct test_combination
 {
     int test_number{};
-    std::vector<size_t> trial_combination{};
+    std::vector<size_t> schedule{};
     float QBER{};
 };
 
 struct test_result
 {
     int test_number{};
-    std::vector<size_t> trial_combination{};
+    std::vector<size_t> schedule{};
     double initial_qber{};              // Exact QBER in the key.
 
     double frame_error_rate{};          // Frequency that the protocol failed to correct all errors in the key.
@@ -45,18 +45,19 @@ struct test_result
     size_t throughput_std_dev{};
 };
 
-std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements);
-std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations,
-                                                   std::vector<double> bit_error_rates);
+std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> schedule_elements);
+std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& schedules,
+                                                   std::vector<double> qbers);
+std::vector<test_combination> prepare_combinations(const std::vector<specified_combination>& combinations);
 void run_trial(std::vector<int> &alice_bit_array,
                  std::vector<int> &bob_bit_array,
-                 const std::vector<size_t> &trial_combination,
+                 const std::vector<size_t> &schedule,
                  size_t seed);
 test_result run_test(const test_combination combination,
                      size_t seed);
 std::vector<test_result> run_simulation(const std::vector<test_combination> &combinations);
-std::string get_trial_combination_string(const std::vector<size_t> &combination);
-std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &combination);
-std::string get_header_block_size_string(const std::vector<size_t> &combination);
+std::string get_schedule_string(const std::vector<size_t> &schedule);
+std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &schedule);
+std::string get_header_block_size_string(const std::vector<size_t> &schedule);
 void write_file(const std::vector<test_result> &data, 
                 fs::path directory);
