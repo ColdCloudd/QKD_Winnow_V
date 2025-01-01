@@ -4,8 +4,13 @@
 
 config_data CFG {};
 
-const fs::path CONFIG_PATH = fs::path(SOURCE_DIR) / "config.json";
-const fs::path RESULTS_DIRECTORY_PATH = fs::path(SOURCE_DIR) / "results";
+#ifdef USE_CURRENT_DIR
+    const fs::path CONFIG_PATH = std::filesystem::current_path() / "config.json";
+    const fs::path RESULTS_DIRECTORY_PATH = std::filesystem::current_path() / "results";
+#else
+    const fs::path CONFIG_PATH = fs::path(SOURCE_DIR) / "config.json";
+    const fs::path RESULTS_DIRECTORY_PATH = fs::path(SOURCE_DIR) / "results";
+#endif
 
 int main()
 {
@@ -34,5 +39,9 @@ int main()
         fmt::print(stderr, fg(fmt::color::red), "ERROR: {}\n", e.what());
         return EXIT_FAILURE;
     }
+
+    fmt::print(fg(fmt::color::green), "Press Enter to exit...");
+    std::cin.get();
+
     return EXIT_SUCCESS;
 }
