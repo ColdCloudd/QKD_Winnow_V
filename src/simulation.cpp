@@ -414,7 +414,9 @@ void write_file(const std::vector<test_result> &data,
             file_count++;
         }
 
+        std::locale russian("ru_RU.utf8");
         std::fstream fout;
+        fout.imbue(russian);
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
         fout << "№;SCHEDULE;"<< get_header_block_size_string(data[0].schedule) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
              << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER" 

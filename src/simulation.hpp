@@ -3,6 +3,7 @@
 #include <vector>
 #include <chrono>
 #include <limits>
+#include <locale>
 #include <numeric>
 #include <cstdlib>
 

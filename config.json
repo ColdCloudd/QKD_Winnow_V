@@ -1,8 +1,8 @@
 {
-    "threads_number": 1,
+    "threads_number": 16,
     "trials_number": 1000,
     "use_config_simulation_seed": true,
-    "simulation_seed": 777,
+    "simulation_seed": 111,
     "shuffle_mode": true,
     "enable_throughput_measurement": true,
     "consider_RTT": false,
