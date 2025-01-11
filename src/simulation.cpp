@@ -391,6 +391,21 @@ std::string get_header_block_size_string(const std::vector<size_t> &schedule)
     return header_str;
 }
 
+// Custom locale settings
+class custom_numpunct : public std::numpunct<char> 
+{
+protected:
+    char do_decimal_point() const override 
+    {
+        return ','; 
+    }
+
+    std::string do_grouping() const override 
+    {
+        return ""; 
+    }
+};
+
 // Records the results of the simulation in a ".csv" format file
 void write_file(const std::vector<test_result> &data,
                 fs::path directory)
@@ -414,11 +429,12 @@ void write_file(const std::vector<test_result> &data,
             file_count++;
         }
 
-        std::locale russian("ru_RU.utf8");
+        std::locale custom_locale(std::locale("ru_RU.utf8"), new custom_numpunct());
         std::fstream fout;
-        fout.imbue(russian);
+        fout.imbue(custom_locale);
+        
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
-        fout << "№;SCHEDULE;"<< get_header_block_size_string(data[0].schedule) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
+        fout << "#;SCHEDULE;"<< get_header_block_size_string(data[0].schedule) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
              << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER" 
              << ((CFG.ENABLE_THROUGHPUT_MEASUREMENT) ? ";THROUGHPUT_MEAN;THROUGHPUT_STD_DEV;THROUGHPUT_MIN;THROUGHPUT_MAX" : "") <<"\n";
         for (size_t i = 0; i < data.size(); ++i)
